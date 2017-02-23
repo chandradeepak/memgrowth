@@ -87,6 +87,28 @@ func (s *grpcServer) SayHello(ctx context.Context, in *grpchello.HelloRequest) (
 	return &grpchello.HelloReply{Message: "Hello " + in.Name + " from cmux"}, nil
 }
 
+func (s *grpcServer) Send(stream grpchello.Greeter_SendServer) error {
+
+	for {
+		select {
+
+		case <-stream.Context().Done():
+			//fmt.Println("client connection closed")
+			break
+
+		default:
+			req, err := stream.Recv()
+			if err != nil {
+				fmt.Println(err)
+			}
+			fmt.Sprintf("req %s", req.Name)
+			break
+
+		}
+	}
+
+}
+
 func serveGRPC(l net.Listener) {
 	grpcs := grpc.NewServer()
 	grpchello.RegisterGreeterServer(grpcs, &grpcServer{})
@@ -105,7 +127,10 @@ func Example() {
 
 	// We first match the connection against HTTP2 fields. If matched, the
 	// connection will be sent through the "grpcl" listener.
-	grpcl := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc1"))
+	//grpcl := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
+
+	grpcl := m.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
+
 	//Otherwise, we match it againts a websocket upgrade request.
 	wsl := m.Match(cmux.HTTP1HeaderField("Upgrade", "websocket"))
 
@@ -150,6 +175,5 @@ func (p *pprof) Start() error {
 }
 
 func main() {
-
 	Example()
 }
